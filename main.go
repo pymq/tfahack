@@ -9,16 +9,20 @@ import (
 )
 
 type Config struct {
-	APIToken string
+	APIToken     string
+	AdminIDs     []int64
+	LogAllEvents bool
 }
 
 func main() {
 	cfg := Config{
 		// TODO from file?
-		APIToken: "",
+		AdminIDs:     nil,
+		APIToken:     "",
+		LogAllEvents: true,
 	}
 
-	bot, err := NewBot(cfg.APIToken)
+	bot, err := NewBot(cfg)
 	if err != nil {
 		log.Panicf("init bot: %v", err)
 	}

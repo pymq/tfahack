@@ -2,31 +2,27 @@ package main
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/utf8string"
-	"gopkg.in/tucnak/telebot.v2"
+	"gopkg.in/telebot.v3"
+	"gopkg.in/telebot.v3/middleware"
 )
 
 type Bot struct {
 	client *telebot.Bot
 	poller *telebot.LongPoller
+	cfg    Config
 }
 
-func NewBot(apiToken string) (*Bot, error) {
+func NewBot(cfg Config) (*Bot, error) {
 	poller := &telebot.LongPoller{Timeout: 10 * time.Second}
 	b, err := telebot.NewBot(telebot.Settings{
-		Reporter: func(err error) {
-			errStr := err.Error()
-			// TODO: upstream
-			if strings.Contains(errStr, apiToken) {
-				return
-			}
-			log.Errorf("telegram bot: %s", errStr)
+		OnError: func(err error, ctx telebot.Context) {
+			log.Errorf("telegram bot: %s", err)
 		},
-		Token:  apiToken,
+		Token:  cfg.APIToken,
 		Poller: poller,
 	})
 	if err != nil {
@@ -36,6 +32,10 @@ func NewBot(apiToken string) (*Bot, error) {
 	bot := &Bot{
 		client: b,
 		poller: poller,
+		cfg:    cfg,
+	}
+	if cfg.LogAllEvents {
+		b.Use(middleware.Logger())
 	}
 	err = bot.initHandlers()
 	if err != nil {
@@ -79,19 +79,21 @@ func (b *Bot) Close() {
 }
 
 func (b *Bot) initHandlers() error {
-	b.client.Handle("/start", func(m *telebot.Message) {
-		_, _ = b.client.Send(m.Chat, "Hello!")
+	adminsOnly := b.client.Group()
+	if len(b.cfg.AdminIDs) > 0 {
+		// TODO: reply to user that he can't use this command
+		adminsOnly.Use(middleware.Whitelist(b.cfg.AdminIDs...))
+	}
+
+	b.client.Handle("/start", func(ctx telebot.Context) error {
+		return ctx.Send("Hello!")
 	})
-	b.client.Handle("/send_messages", func(m *telebot.Message) {
-		_, _ = b.client.Send(m.Chat, "test test")
-		//if m.Chat.ID != b.adminChat.ID {
-		//	_, _ = b.client.Send(m.Chat, "Unknown command")
-		//	return
-		//}
+	adminsOnly.Handle("/send_messages", func(ctx telebot.Context) error {
+		return ctx.Send("test test")
 	})
 	// rest text messages
-	b.client.Handle(telebot.OnText, func(m *telebot.Message) {
-		_, _ = b.client.Send(m.Chat, "Unknown command")
+	b.client.Handle(telebot.OnText, func(ctx telebot.Context) error {
+		return ctx.Send("Unknown command")
 	})
 
 	err := b.client.SetCommands([]telebot.Command{
