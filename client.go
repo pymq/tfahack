@@ -223,17 +223,40 @@ func (b *Bot) handleCreateMailingList(ctx telebot.Context) error {
 // command: /send_messages <topic> <mailing_list_name>
 func (b *Bot) handleSendMessages(ctx telebot.Context) error {
 	args := ctx.Args()
-	if len(args) != 2 {
+	if len(args) != 3 {
 		return ctx.Send("Пожалуйста, введите данные в формате /send_messages <IdТопика> <MailingListId> <MessageBody>")
 	}
 	topicId, _ := strconv.ParseInt(args[0], 10, 64)
 	mailingListId, _ := strconv.ParseInt(args[1], 10, 64)
-	//messageBody := args[2]
+	messageBody := args[2]
 
-	topic, _ := b.db.GetUserTopicById(topicId)
-	mList, _ := b.db.GetMailingListRecipientsById(mailingListId)
+	recipients, _ := b.db.GetMailingListRecipientsById(mailingListId)
 
-	return ctx.Send(fmt.Sprintf("%v\n%v", mList, topic))
+	for _, recipient := range recipients {
+		message, err := b.client.Send(telebot.ChatID(recipient.RecipientTGId), messageBody)
+		if err != nil {
+			log.Errorf("send message: %v", err)
+			return err
+		}
+		err = b.db.AddMessage(models.Message{
+			MessageTGId:        int64(message.ID),
+			SenderTGId:         ctx.Chat().ID,
+			RecipientId:        recipient.RecipientId,
+			TopicId:            topicId,
+			ListId:             mailingListId,
+			SendDateTime:       message.Time(),
+			Message:            message.Text,
+			React:              "",
+			Read:               0,
+			IsRecipientMessage: 0,
+		})
+		if err != nil {
+			log.Errorf("save message: %v", err)
+			return err
+		}
+	}
+
+	return ctx.Send("Пост отправлен!")
 }
 
 // command: /show_replies <topic> [search_query_word]

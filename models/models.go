@@ -1,6 +1,8 @@
 package models
 
 import (
+	"time"
+
 	"github.com/uptrace/bun"
 )
 
@@ -34,4 +36,20 @@ type Topic struct {
 	TopicId    int64  `bun:"TopicId,pk,autoincrement,unique"`
 	SenderTGId int64  `bun:"SenderTGId,notnull"`
 	Topic      string `bun:"Topic,notnull"`
+}
+
+type Message struct {
+	bun.BaseModel `bun:"table:Messages,alias:message"`
+
+	MessageId          int64     `bun:"MessageId,pk,autoincrement,unique"`
+	MessageTGId        int64     `bun:"MessageTGId,notnull"`
+	SenderTGId         int64     `bun:"SenderTGId,notnull"`
+	RecipientId        int64     `bun:"RecipientId,notnull"`
+	TopicId            int64     `bun:"TopicId,notnull"`
+	ListId             int64     `bun:"ListId,notnull"`
+	SendDateTime       time.Time `bun:"SendDateTime,notnull"`
+	Message            string    `bun:"Message,notnull"`
+	React              string    `bun:"React"`
+	Read               int64     `bun:"Read,notnull"`
+	IsRecipientMessage int64     `bun:"IsRecipientMessage,notnull"`
 }

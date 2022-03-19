@@ -90,13 +90,16 @@ func (db *DB) GetMailingListBySender(senderTGId int64) ([]models.MailingList, er
 
 func (db *DB) GetMailingListRecipientsById(listId int64) ([]models.Recipient, error) {
 	recipients := make([]models.Recipient, 0)
+	mList := models.MailingList{}
+	respondersIds := db.db.NewSelect().
+		Model(&mList).
+		Column("RecipientId").
+		Join("LEFT JOIN MailingListRelations ON mailingList.ListId = MailingListRelations.ListId").
+		Where("mailingList.ListId = (?)", listId)
 	err := db.db.NewSelect().
 		Model(&recipients).
-		Join("RIGHT JOIN MailingListRelations ON mailingList.ListId = MailingListRelations.ListId").
-		Join("RIGHT JOIN MailingList ON mailingList.ListId = MailingListRelations.ListId").
-		Where("MailingList.ListId = (?)", listId).
+		Where("recipientId IN(?)", respondersIds).
 		Scan(context.Background())
-
 	return recipients, err
 }
 
@@ -121,4 +124,9 @@ func (db *DB) GetUserTopicById(topicId int64) (models.Topic, error) {
 		Where("topic.TopicId = (?)", topicId).
 		Scan(context.Background())
 	return topic, err
+}
+
+func (db *DB) AddMessage(message models.Message) error {
+	_, err := db.db.NewInsert().Model(&message).Exec(context.Background())
+	return err
 }
