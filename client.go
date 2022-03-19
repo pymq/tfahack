@@ -245,7 +245,7 @@ func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 	topic := args[0]
 
 	page := 1
-	const pagingBy = 2
+	const pagingBy = 5
 	var allReplies []mockMessage
 	var totalPages int
 	tgMessages := make([]*telebot.Message, 0, pagingBy)
@@ -279,7 +279,7 @@ func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 		}
 		// clear messages on last page
 		for _, message := range tgMessages[currIdx:] {
-			_, err := b.client.Edit(message, "")
+			_, err := b.client.Edit(message, "-")
 			if err != nil {
 				return err
 			}
@@ -346,7 +346,7 @@ func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 			_ = sendOrUpdateMessages()
 
 			page = newPage
-			if page >= totalPages {
+			if page > totalPages {
 				page = totalPages
 			}
 
