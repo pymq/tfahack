@@ -85,14 +85,19 @@ func (b *Bot) initHandlers() error {
 		adminsOnly.Use(middleware.Whitelist(b.cfg.AdminIDs...))
 	}
 
-	b.client.Handle("/start", func(ctx telebot.Context) error {
-		return ctx.Send("Hello!")
-	})
-	adminsOnly.Handle("/send_messages", func(ctx telebot.Context) error {
-		return ctx.Send("test test")
-	})
+	b.client.Handle("/start", b.handleStart)
+	b.client.Handle("/help", b.handleHelp)
+	adminsOnly.Handle("/create_mailing_list", b.handleCreateMailingList)
+	adminsOnly.Handle("/send_messages", b.handleSendMessages)
+	adminsOnly.Handle("/show_replies", b.handleShowReplies)
+	adminsOnly.Handle("/notifications_config", b.handleNotificationsConfig)
+	adminsOnly.Handle("/topics_stats", b.handleTopicsStats)
 	// rest text messages
 	b.client.Handle(telebot.OnText, func(ctx telebot.Context) error {
+		msg := ctx.Message()
+		if reply := msg.ReplyTo; reply != nil {
+			// TODO: check if he replied on message to recipient; save it to DB; send it to sender
+		}
 		return ctx.Send("Unknown command")
 	})
 
@@ -102,10 +107,82 @@ func (b *Bot) initHandlers() error {
 			Description: "запустить бота. TODO: description",
 		},
 		{
+			Text:        "help",
+			Description: "запустить бота. TODO: description",
+		},
+		{
+			Text:        "create_mailing_list",
+			Description: "создать список людей на рассылку. формат: /create_mailing_list <mailing_list_name> <recipient1> <recipient2> <...>",
+		},
+		{
 			Text:        "send_messages",
-			Description: "отправить рассылку по указанному топику",
+			Description: "отправить рассылку по указанному топику и списку рассылки. формат: /send_messages <topic> <mailing_list_name>",
+		},
+		{
+			Text:        "show_replies",
+			Description: "вывести ответы по топику. TODO: description",
+		},
+		{
+			Text:        "notifications_config",
+			Description: "настройка уведомлений. TODO: descriptions",
+		},
+		{
+			Text:        "topics_stats",
+			Description: "вывод статистики по топикам. TODO: descriptions",
 		},
 	})
 
 	return err
+}
+
+func (b *Bot) handleStart(ctx telebot.Context) error {
+	// TODO: add to list of possible recipients
+	return ctx.Send("Hello!")
+}
+
+func (b *Bot) handleHelp(ctx telebot.Context) error {
+	// TODO: write help text
+	return ctx.Send("Hello!")
+}
+
+// command: /create_mailing_list <mailing_list_name> <recipient1> <recipient2> <...>
+func (b *Bot) handleCreateMailingList(ctx telebot.Context) error {
+	args := ctx.Args()
+	if len(args) < 2 {
+		return ctx.Send("command should be in format /create_mailing_list <mailing_list_name> <recipient1> <recipient2> <...>")
+	}
+	listName := args[0]
+	recipients := args[1:]
+	// TODO: save to db
+
+	return ctx.Send(fmt.Sprintf("%s: %v", listName, recipients))
+}
+
+// command: /send_messages <topic> <mailing_list_name>
+func (b *Bot) handleSendMessages(ctx telebot.Context) error {
+	args := ctx.Args()
+	if len(args) != 2 {
+		return ctx.Send("command should be in format /send_messages <topic> <mailing_list_name>")
+	}
+	topic := args[0]
+	mailingListName := args[1]
+	// TODO: send, save to db
+
+	return ctx.Send("test " + topic + " " + mailingListName)
+}
+
+func (b *Bot) handleShowReplies(ctx telebot.Context) error {
+	// TODO: show as one message with inline buttons as pagination
+	return ctx.Send("test")
+}
+
+func (b *Bot) handleNotificationsConfig(ctx telebot.Context) error {
+	// TODO: show keyboard buttons with 3 config options; add handlers on each of the buttons;
+	//  hide keyboard after tapping on button
+	return ctx.Send("test")
+}
+
+func (b *Bot) handleTopicsStats(ctx telebot.Context) error {
+	// TODO: show table with stats?
+	return ctx.Send("test")
 }
