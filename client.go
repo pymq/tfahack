@@ -108,8 +108,41 @@ func (b *Bot) initHandlers() error {
 		msg := ctx.Message()
 		if reply := msg.ReplyTo; reply != nil {
 			// TODO: check if he replied on message to recipient; save it to DB; send it to sender
+			message, err := b.db.GetMessage(int64(msg.ReplyTo.ID))
+			if err != nil {
+				log.Errorf("reply: get message: %v", err)
+				return err
+			}
+			if message.ListId == 0 { //TODO add relevant check on reply to to unsaved message
+				return nil
+			}
+
+			if message.IsRecipientMessage == 1 {
+				// sentMessage, err := b.client.Send(telebot.ChatID(message.SenderTGId), msg.Text)
+			} else {
+				sentMessage, err := b.client.Send(telebot.ChatID(message.SenderTGId), msg.Text)
+				if err != nil {
+					log.Errorf("reply: send recipient reply: %v", err)
+					return err
+				}
+				err = b.db.AddMessage(models.Message{
+					MessageTGId:        int64(sentMessage.ID),
+					SenderTGId:         message.SenderTGId,
+					RecipientId:        ctx.Chat().ID,
+					TopicId:            message.TopicId,
+					ListId:             message.ListId,
+					SendDateTime:       time.Time{},
+					Message:            msg.Text,
+					Read:               0,
+					IsRecipientMessage: 1,
+				})
+				if err != nil {
+					log.Errorf("reply: save recipient reply: %v", err)
+					return err
+				}
+			}
 		}
-		return ctx.Send("Unknown command")
+		return nil
 	})
 
 	err := b.client.SetCommands([]telebot.Command{
@@ -227,9 +260,18 @@ func (b *Bot) handleSendMessages(ctx telebot.Context) error {
 	if len(args) != 3 {
 		return ctx.Send("Пожалуйста, введите данные в формате /send_messages <IdТопика> <MailingListId> <MessageBody>")
 	}
-	topicId, _ := strconv.ParseInt(args[0], 10, 64)
+	topicName := args[0]
 	mailingListId, _ := strconv.ParseInt(args[1], 10, 64)
 	messageBody := args[2]
+
+	topic, err := b.db.AddTopic(models.Topic{
+		SenderTGId: ctx.Chat().ID,
+		Topic:      topicName,
+	})
+	if err != nil {
+		log.Errorf("send message: create topic: %v", err)
+		return err
+	}
 
 	recipients, _ := b.db.GetMailingListRecipientsById(mailingListId)
 
@@ -243,7 +285,7 @@ func (b *Bot) handleSendMessages(ctx telebot.Context) error {
 			MessageTGId:        int64(message.ID),
 			SenderTGId:         ctx.Chat().ID,
 			RecipientId:        recipient.RecipientId,
-			TopicId:            topicId,
+			TopicId:            topic.TopicId,
 			ListId:             mailingListId,
 			SendDateTime:       message.Time(),
 			Message:            message.Text,

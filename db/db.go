@@ -111,9 +111,9 @@ func (db *DB) GetMailingListRecipientsById(listId int64) ([]models.Recipient, er
 	return recipients, err
 }
 
-func (db *DB) AddTopic(topic models.Topic) error {
+func (db *DB) AddTopic(topic models.Topic) (models.Topic, error) {
 	_, err := db.db.NewInsert().Model(&topic).Exec(context.Background())
-	return err
+	return topic, err
 }
 
 func (db *DB) GetUserTopicsBySender(senderTGId int64) ([]models.Topic, error) {
@@ -146,4 +146,13 @@ func (db *DB) GetMessagesByTopicId(topicId int64) ([]models.Message, error) {
 		Where("message.TopicId = (?)", topicId).
 		Scan(context.Background())
 	return messages, err
+}
+
+func (db *DB) GetMessage(messageId int64) (models.Message, error) {
+	message := models.Message{}
+	err := db.db.NewSelect().
+		Model(&message).
+		Where("message.MessageTGId = (?)", messageId).
+		Scan(context.Background())
+	return message, err
 }
