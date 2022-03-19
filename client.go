@@ -242,6 +242,9 @@ func (b *Bot) handleCreateMailingList(ctx telebot.Context) error {
 		errors = append(errors, fmt.Sprintf("@%s - Пользователь не подключен к боту", recipient))
 	}
 
+	if len(recipientsIds) == 0 {
+		return ctx.Send(fmt.Sprintf("Не удалось создать список\n%s", strings.Join(errors, ",\n")))
+	}
 	err = b.db.AddMailingList(models.MailingList{ListName: args[0], SenderTGId: ctx.Chat().ID}, recipientsIds)
 	if err != nil {
 		log.Errorf("create mailing list: %v", err)
