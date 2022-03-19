@@ -27,3 +27,11 @@ type MailingListRelations struct {
 	ListId      int64 `bun:"ListId"`
 	RecipientId int64 `bun:"RecipientId"`
 }
+
+type Topic struct {
+	bun.BaseModel `bun:"table:Topics,alias:topic"`
+
+	TopicId    int64  `bun:"TopicId,pk,autoincrement,unique"`
+	SenderTGId int64  `bun:"SenderTGId,notnull"`
+	Topic      string `bun:"Topic,notnull"`
+}

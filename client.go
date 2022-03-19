@@ -224,13 +224,15 @@ func (b *Bot) handleCreateMailingList(ctx telebot.Context) error {
 func (b *Bot) handleSendMessages(ctx telebot.Context) error {
 	args := ctx.Args()
 	if len(args) != 2 {
-		return ctx.Send("command should be in format /send_messages <topic> <mailing_list_name>")
+		return ctx.Send("Пожалуйста, введите данные в формате /send_messages <IdТопика> <MailingListId> <MessageBody>")
 	}
-	topic := args[0]
-	mailingListName := args[1]
-	// TODO: send, save to db
-
-	return ctx.Send("test " + topic + " " + mailingListName)
+	return nil
+	//topicId := args[0]
+	//mailingListId := args[1]
+	//messageBody := args[2]
+	//
+	//
+	//return ctx.Send(fmt.Sprintf("%v\n%v", mList, topics))
 }
 
 // command: /show_replies <topic>

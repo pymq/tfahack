@@ -57,8 +57,8 @@ CREATE TABLE IF NOT EXISTS "Senders"
 
 CREATE TABLE IF NOT EXISTS "Topics"
 (
-    "TopicId"  INTEGER NOT NULL UNIQUE,
-    "SenderId" INTEGER NOT NULL,
-    "Topic"    TEXT,
+    "TopicId"    INTEGER NOT NULL UNIQUE,
+    "SenderTGId" INTEGER NOT NULL,
+    "Topic"      TEXT    NOT NULL,
     PRIMARY KEY ("TopicId" AUTOINCREMENT)
 )
