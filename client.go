@@ -1,10 +1,14 @@
 package main
 
 import (
+	"encoding/base64"
+	"encoding/binary"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/pymq/tfahack/db"
 	"github.com/pymq/tfahack/models"
 	log "github.com/sirupsen/logrus"
@@ -229,9 +233,129 @@ func (b *Bot) handleSendMessages(ctx telebot.Context) error {
 	return ctx.Send("test " + topic + " " + mailingListName)
 }
 
+// command: /show_replies <topic>
 func (b *Bot) handleShowReplies(ctx telebot.Context) error {
-	// TODO: show as one message with inline buttons as pagination
-	return ctx.Send("test")
+	args := ctx.Args()
+	if len(args) != 1 {
+		return ctx.Send("command should be in format /show_replies <topic>")
+	}
+	topic := args[0]
+
+	page := 1
+	const pagingBy = 2
+	var allReplies []mockMessage
+	var totalPages int
+	tgMessages := make([]*telebot.Message, 0, pagingBy)
+
+	sendOrUpdateMessages := func() error {
+		allReplies = getMockRepliesByTopic(topic)
+		totalPages = len(allReplies) / pagingBy
+		if len(allReplies)%pagingBy != 0 {
+			totalPages++
+		}
+
+		currIdx := 0
+		for i := (page - 1) * pagingBy; i < page*pagingBy && i < len(allReplies); i++ {
+			reply := allReplies[i]
+			const timeLayout = "2006-01-02 15:04:05"
+			messageText := fmt.Sprintf("%s (%s):\n\n%s", reply.TGSenderId, reply.SendDate.Format(timeLayout), reply.Text)
+			if currIdx >= len(tgMessages) {
+				message, err := b.client.Send(ctx.Recipient(), messageText)
+				if err != nil {
+					return err
+				}
+				tgMessages = append(tgMessages, message)
+			} else {
+				message := tgMessages[currIdx]
+				message, err := b.client.Edit(message, messageText)
+				if err != nil {
+					return err
+				}
+			}
+			currIdx++
+		}
+		// clear messages on last page
+		for _, message := range tgMessages[currIdx:] {
+			_, err := b.client.Edit(message, "")
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	h := xxhash.New()
+	_ = binary.Write(h, binary.BigEndian, ctx.Chat().ID)
+	sumBytes := h.Sum([]byte(topic))
+	uniquePrefix := base64.URLEncoding.EncodeToString(sumBytes)
+	uniquePrefix = strings.TrimSuffix(uniquePrefix, "==")
+	fmt.Println(uniquePrefix)
+
+	makeReplyMarkup := func() *telebot.ReplyMarkup {
+		prevPage := page - 1
+		if prevPage <= 0 {
+			prevPage = 1
+		}
+		nextPage := page + 1
+		if nextPage > totalPages {
+			nextPage = totalPages
+		}
+		var replyMarkup = &telebot.ReplyMarkup{}
+		var btnFirst = replyMarkup.Data("«1", uniquePrefix+"_first", "1")
+		var btnPrev = replyMarkup.Data(fmt.Sprintf("< %d", prevPage), uniquePrefix+"_prev", strconv.Itoa(prevPage))
+		if prevPage == page {
+			btnPrev = replyMarkup.Data("-", "prev")
+		}
+		var btnCurr = replyMarkup.Data(fmt.Sprintf("· %d ·", page), uniquePrefix+"_curr")
+		var btnNext = replyMarkup.Data(fmt.Sprintf("%d >", nextPage), uniquePrefix+"_next", strconv.Itoa(nextPage))
+		if nextPage == page {
+			btnNext = replyMarkup.Data("-", uniquePrefix+"_next")
+		}
+		var btnLast = replyMarkup.Data(fmt.Sprintf("%d »", totalPages), uniquePrefix+"_last", strconv.Itoa(totalPages))
+		replyMarkup.Inline(replyMarkup.Row(btnFirst, btnPrev, btnCurr, btnNext, btnLast))
+
+		return replyMarkup
+	}
+
+	err := sendOrUpdateMessages()
+	if err != nil {
+		return err
+	}
+
+	str := fmt.Sprintf("Сообщения по топику '%s'. Выбери страницу", topic)
+	keyboardMessage, err := b.client.Send(ctx.Recipient(), str, makeReplyMarkup())
+	if err != nil {
+		return err
+	}
+
+	for _, btn := range makeReplyMarkup().InlineKeyboard[0] {
+		b.client.Handle(btn.CallbackUnique(), func(ctx telebot.Context) error {
+			data := strings.Split(ctx.Callback().Data, "|")
+			if len(data) == 0 {
+				return ctx.Respond()
+			}
+			newPage, err := strconv.Atoi(data[0])
+			if err != nil {
+				log.Errorf("invalid data in inline keyboard callback: '%s'", ctx.Callback().Data)
+				return ctx.Respond()
+			}
+
+			// this will re-calculate totalPages
+			_ = sendOrUpdateMessages()
+
+			page = newPage
+			if page >= totalPages {
+				page = totalPages
+			}
+
+			_ = sendOrUpdateMessages()
+			_, _ = b.client.EditReplyMarkup(keyboardMessage, makeReplyMarkup())
+
+			return ctx.Respond()
+		})
+	}
+
+	return nil
 }
 
 func (b *Bot) handleNotificationsConfig(ctx telebot.Context) error {
@@ -253,5 +377,47 @@ func IgnoreNonPrivateMessages(next telebot.HandlerFunc) telebot.HandlerFunc {
 		}
 
 		return next(ctx)
+	}
+}
+
+type mockMessage struct {
+	TGSenderId string
+	SendDate   time.Time
+	Text       string
+}
+
+// TODO: select from DB
+func getMockRepliesByTopic(topic string) []mockMessage {
+	return []mockMessage{
+		{
+			TGSenderId: "@risinglight",
+			SendDate:   time.Now().Add(time.Minute * -5),
+			Text:       "Test from leshya 1",
+		},
+		{
+			TGSenderId: "@risinglight",
+			SendDate:   time.Now().Add(time.Minute * -5),
+			Text:       "Test from leshya 2",
+		},
+		{
+			TGSenderId: "@risinglight",
+			SendDate:   time.Now().Add(time.Minute * -4),
+			Text:       "Test from leshya 3",
+		},
+		{
+			TGSenderId: "@grishanya_win",
+			SendDate:   time.Now().Add(time.Minute * -4),
+			Text:       "Test from non-leshya 1",
+		},
+		{
+			TGSenderId: "@risinglight",
+			SendDate:   time.Now().Add(time.Minute * -3),
+			Text:       "Test from leshya 4",
+		},
+		{
+			TGSenderId: "@grishanya_win",
+			SendDate:   time.Now().Add(time.Minute * -1),
+			Text:       "Test from non-leshya 2",
+		},
 	}
 }

@@ -3,6 +3,7 @@ module github.com/pymq/tfahack
 go 1.17
 
 require (
+	github.com/cespare/xxhash/v2 v2.1.2
 	github.com/sirupsen/logrus v1.8.1
 	github.com/uptrace/bun v1.1.1
 	github.com/uptrace/bun/dialect/sqlitedialect v1.1.1
