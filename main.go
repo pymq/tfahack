@@ -16,7 +16,6 @@ type Config struct {
 }
 
 func main() {
-
 	botDB, err := db.NewDB()
 	if err != nil {
 		log.Panicf("init db: %v", err)
@@ -40,4 +39,5 @@ func main() {
 	log.Infof("received exit signal '%s'", sig)
 
 	bot.Close()
+	botDB.Close()
 }

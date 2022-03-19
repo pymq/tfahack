@@ -6,6 +6,7 @@ import (
 	_ "embed"
 
 	"github.com/pymq/tfahack/models"
+	log "github.com/sirupsen/logrus"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/sqlitedialect"
 	"github.com/uptrace/bun/driver/sqliteshim"
@@ -39,6 +40,13 @@ func NewDB() (*DB, error) {
 	}
 
 	return &DB{db: db}, nil
+}
+
+func (db *DB) Close() {
+	err := db.db.Close()
+	if err != nil {
+		log.Warnf("close db: %v", err)
+	}
 }
 
 func (db *DB) AddRecipient(recipient models.Recipient) error {
