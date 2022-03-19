@@ -79,7 +79,7 @@ func (db *DB) AddMailingList(mList models.MailingList, recipientsIds []int64) er
 	return err
 }
 
-func (db *DB) GetMailingList(senderTGId int64) ([]models.MailingList, error) {
+func (db *DB) GetMailingListBySender(senderTGId int64) ([]models.MailingList, error) {
 	mList := make([]models.MailingList, 1)
 	err := db.db.NewSelect().
 		Model(&mList).
@@ -88,16 +88,37 @@ func (db *DB) GetMailingList(senderTGId int64) ([]models.MailingList, error) {
 	return mList, err
 }
 
+func (db *DB) GetMailingListRecipientsById(listId int64) ([]models.Recipient, error) {
+	recipients := make([]models.Recipient, 0)
+	err := db.db.NewSelect().
+		Model(&recipients).
+		Join("RIGHT JOIN MailingListRelations ON mailingList.ListId = MailingListRelations.ListId").
+		Join("RIGHT JOIN MailingList ON mailingList.ListId = MailingListRelations.ListId").
+		Where("MailingList.ListId = (?)", listId).
+		Scan(context.Background())
+
+	return recipients, err
+}
+
 func (db *DB) AddTopic(topic models.Topic) error {
 	_, err := db.db.NewInsert().Model(&topic).Exec(context.Background())
 	return err
 }
 
-func (db *DB) GetUserTopics(senderTGId int64) ([]models.Topic, error) {
+func (db *DB) GetUserTopicsBySender(senderTGId int64) ([]models.Topic, error) {
 	topics := make([]models.Topic, 1)
 	err := db.db.NewSelect().
 		Model(&topics).
 		Where("topic.SenderTGId = (?)", senderTGId).
 		Scan(context.Background())
 	return topics, err
+}
+
+func (db *DB) GetUserTopicById(topicId int64) (models.Topic, error) {
+	topic := models.Topic{}
+	err := db.db.NewSelect().
+		Model(&topic).
+		Where("topic.TopicId = (?)", topicId).
+		Scan(context.Background())
+	return topic, err
 }

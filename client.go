@@ -226,13 +226,14 @@ func (b *Bot) handleSendMessages(ctx telebot.Context) error {
 	if len(args) != 2 {
 		return ctx.Send("Пожалуйста, введите данные в формате /send_messages <IdТопика> <MailingListId> <MessageBody>")
 	}
-	return nil
-	//topicId := args[0]
-	//mailingListId := args[1]
+	topicId, _ := strconv.ParseInt(args[0], 10, 64)
+	mailingListId, _ := strconv.ParseInt(args[1], 10, 64)
 	//messageBody := args[2]
-	//
-	//
-	//return ctx.Send(fmt.Sprintf("%v\n%v", mList, topics))
+
+	topic, _ := b.db.GetUserTopicById(topicId)
+	mList, _ := b.db.GetMailingListRecipientsById(mailingListId)
+
+	return ctx.Send(fmt.Sprintf("%v\n%v", mList, topic))
 }
 
 // command: /show_replies <topic>
