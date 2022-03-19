@@ -11,7 +11,7 @@ import (
 	"github.com/uptrace/bun/extra/bundebug"
 )
 
-//go:embed init/init_struct.sql
+//go:embed init_struct.sql
 var initStructQuery string
 
 type DB struct {
