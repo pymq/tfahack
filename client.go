@@ -80,13 +80,14 @@ func (b *Bot) Close() {
 
 func (b *Bot) initHandlers() error {
 	adminsOnly := b.client.Group()
+	adminsOnly.Use(IgnoreNonPrivateMessages)
 	if len(b.cfg.AdminIDs) > 0 {
 		// TODO: reply to user that he can't use this command
 		adminsOnly.Use(middleware.Whitelist(b.cfg.AdminIDs...))
 	}
 
-	b.client.Handle("/start", b.handleStart)
-	b.client.Handle("/help", b.handleHelp)
+	b.client.Handle("/start", b.handleStart, IgnoreNonPrivateMessages)
+	b.client.Handle("/help", b.handleHelp, IgnoreNonPrivateMessages)
 	adminsOnly.Handle("/create_mailing_list", b.handleCreateMailingList)
 	adminsOnly.Handle("/send_messages", b.handleSendMessages)
 	adminsOnly.Handle("/show_replies", b.handleShowReplies)
@@ -185,4 +186,15 @@ func (b *Bot) handleNotificationsConfig(ctx telebot.Context) error {
 func (b *Bot) handleTopicsStats(ctx telebot.Context) error {
 	// TODO: show table with stats?
 	return ctx.Send("test")
+}
+
+func IgnoreNonPrivateMessages(next telebot.HandlerFunc) telebot.HandlerFunc {
+	return func(ctx telebot.Context) error {
+		msg := ctx.Message()
+		if msg != nil && !msg.Private() {
+			return nil
+		}
+
+		return next(ctx)
+	}
 }
