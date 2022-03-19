@@ -168,7 +168,7 @@ func (db *DB) GetMessagesByTopicIdFromRecipient(topicId int64) ([]models.Message
 	return messages, err
 }
 
-func (db *DB) GetMessage(messageId int64) (models.Message, error) {
+func (db *DB) GetMessageByMessageId(messageId int64) (models.Message, error) {
 	message := models.Message{}
 	err := db.db.NewSelect().
 		Model(&message).
