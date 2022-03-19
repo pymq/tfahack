@@ -109,7 +109,7 @@ func (db *DB) AddTopic(topic models.Topic) error {
 }
 
 func (db *DB) GetUserTopicsBySender(senderTGId int64) ([]models.Topic, error) {
-	topics := make([]models.Topic, 1)
+	topics := make([]models.Topic, 0)
 	err := db.db.NewSelect().
 		Model(&topics).
 		Where("topic.SenderTGId = (?)", senderTGId).
@@ -129,4 +129,13 @@ func (db *DB) GetUserTopicById(topicId int64) (models.Topic, error) {
 func (db *DB) AddMessage(message models.Message) error {
 	_, err := db.db.NewInsert().Model(&message).Exec(context.Background())
 	return err
+}
+
+func (db *DB) GetMessagesByTopicId(topicId int64) ([]models.Message, error) {
+	messages := make([]models.Message, 0)
+	err := db.db.NewSelect().
+		Model(&messages).
+		Where("message.TopicId = (?)", topicId).
+		Scan(context.Background())
+	return messages, err
 }

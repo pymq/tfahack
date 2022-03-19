@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -160,7 +161,7 @@ func (b *Bot) handleStart(ctx telebot.Context) error {
 		RecipientTGName: ctx.Chat().Username,
 	})
 	if err != nil {
-		log.Errorf("stat command: recipient insert: %v", err)
+		log.Errorf("start command: recipient insert: %v", err)
 		return err
 	}
 	return ctx.Send("Рады видеть вас в нашем боте! Теперь вы сможете получать рассылки от партнеров!")
@@ -403,9 +404,46 @@ func (b *Bot) handleNotificationsConfig(ctx telebot.Context) error {
 	return ctx.Send("test")
 }
 
+// TODO: untested
 func (b *Bot) handleTopicsStats(ctx telebot.Context) error {
-	// TODO: show table with stats?
-	return ctx.Send("test")
+	topics, err := b.db.GetUserTopicsBySender(ctx.Chat().ID)
+	if err != nil {
+		return err
+	}
+
+	type Stats struct {
+		Sent, Received int
+	}
+
+	topicsStats := make(map[string]Stats)
+	for _, topic := range topics {
+		messages, err := b.db.GetMessagesByTopicId(topic.TopicId)
+		if err != nil {
+			return err
+		}
+		stat := Stats{}
+		for _, msg := range messages {
+			if msg.IsRecipientMessage == 0 {
+				stat.Sent++
+			} else {
+				stat.Received++
+			}
+		}
+		topicsStats[topic.Topic] = stat
+	}
+
+	sort.Slice(topics, func(i, j int) bool {
+		return topics[i].Topic < topics[j].Topic
+	})
+
+	str := new(strings.Builder)
+	str.WriteString("Статистика по топикам:")
+	for _, topic := range topics {
+		stat := topicsStats[topic.Topic]
+		fmt.Fprintf(str, "\n%s: отправлено %d; получено %d", topic.Topic, stat.Sent, stat.Received)
+	}
+
+	return ctx.Send(str.String())
 }
 
 func IgnoreNonPrivateMessages(next telebot.HandlerFunc) telebot.HandlerFunc {
