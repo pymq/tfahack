@@ -130,7 +130,7 @@ func (b *Bot) initHandlers() error {
 		},
 		{
 			Text:        "show_replies",
-			Description: "вывести ответы по топику. TODO: description",
+			Description: "вывести ответы по топику. /show_replies <topic> [search_query_word]",
 		},
 		{
 			Text:        "notifications_config",
@@ -236,13 +236,17 @@ func (b *Bot) handleSendMessages(ctx telebot.Context) error {
 	return ctx.Send(fmt.Sprintf("%v\n%v", mList, topic))
 }
 
-// command: /show_replies <topic>
+// command: /show_replies <topic> [search_query_word]
 func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 	args := ctx.Args()
-	if len(args) != 1 {
-		return ctx.Send("command should be in format /show_replies <topic>")
+	if len(args) < 1 || len(args) > 2 {
+		return ctx.Send("command should be in format /show_replies <topic> [search_query_word]")
 	}
 	topic := args[0]
+	searchQuery := ""
+	if len(args) == 2 {
+		searchQuery = args[1]
+	}
 
 	page := 1
 	const pagingBy = 5
@@ -252,6 +256,16 @@ func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 
 	sendOrUpdateMessages := func() error {
 		allReplies = getMockRepliesByTopic(topic)
+		if searchQuery != "" {
+			n := 0
+			for _, msg := range allReplies {
+				if strings.Contains(msg.Text, searchQuery) {
+					allReplies[n] = msg
+					n++
+				}
+			}
+			allReplies = allReplies[:n]
+		}
 		totalPages = len(allReplies) / pagingBy
 		if len(allReplies)%pagingBy != 0 {
 			totalPages++
