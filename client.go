@@ -108,7 +108,7 @@ func (b *Bot) initHandlers() error {
 		msg := ctx.Message()
 		if reply := msg.ReplyTo; reply != nil {
 			// TODO: check if he replied on message to recipient; save it to DB; send it to sender
-			message, err := b.db.GetMessage(int64(msg.ReplyTo.ID))
+			message, err := b.db.GetMessageByMessageId(int64(msg.ReplyTo.ID))
 			if err != nil {
 				log.Errorf("reply: get message: %v", err)
 				return err
@@ -117,8 +117,33 @@ func (b *Bot) initHandlers() error {
 				return nil
 			}
 
+			// TODO remove copy-paste
 			if message.IsRecipientMessage == 1 {
-				// sentMessage, err := b.client.Send(telebot.ChatID(message.SenderTGId), msg.Text)
+				recipient, err := b.db.GetRecipientsByIds([]int64{message.RecipientId})
+				if err != nil {
+					log.Errorf("reply: get sender info: %v", err)
+					return err
+				}
+				sentMessage, err := b.client.Send(telebot.ChatID(recipient[0].RecipientTGId), msg.Text)
+				if err != nil {
+					log.Errorf("reply: send sender reply: %v", err)
+					return err
+				}
+				err = b.db.AddMessage(models.Message{
+					MessageTGId:        int64(sentMessage.ID),
+					SenderTGId:         ctx.Chat().ID,
+					RecipientId:        recipient[0].RecipientTGId,
+					TopicId:            message.TopicId,
+					ListId:             message.ListId,
+					SendDateTime:       time.Time{},
+					Message:            msg.Text,
+					Read:               0,
+					IsRecipientMessage: 0,
+				})
+				if err != nil {
+					log.Errorf("reply: save recipient reply: %v", err)
+					return err
+				}
 			} else {
 				sentMessage, err := b.client.Send(telebot.ChatID(message.SenderTGId), msg.Text)
 				if err != nil {

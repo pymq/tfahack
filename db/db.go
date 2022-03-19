@@ -173,6 +173,6 @@ func (db *DB) GetMessage(messageId int64) (models.Message, error) {
 	err := db.db.NewSelect().
 		Model(&message).
 		Where("message.MessageTGId = (?)", messageId).
-		Scan(context.Background())
+		Scan(context.Background(), &message)
 	return message, err
 }
