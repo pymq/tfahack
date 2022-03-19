@@ -291,7 +291,6 @@ func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 	sumBytes := h.Sum([]byte(topic))
 	uniquePrefix := base64.URLEncoding.EncodeToString(sumBytes)
 	uniquePrefix = strings.TrimSuffix(uniquePrefix, "==")
-	fmt.Println(uniquePrefix)
 
 	makeReplyMarkup := func() *telebot.ReplyMarkup {
 		prevPage := page - 1
@@ -306,7 +305,7 @@ func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 		var btnFirst = replyMarkup.Data("«1", uniquePrefix+"_first", "1")
 		var btnPrev = replyMarkup.Data(fmt.Sprintf("< %d", prevPage), uniquePrefix+"_prev", strconv.Itoa(prevPage))
 		if prevPage == page {
-			btnPrev = replyMarkup.Data("-", "prev")
+			btnPrev = replyMarkup.Data("-", uniquePrefix+"_prev")
 		}
 		var btnCurr = replyMarkup.Data(fmt.Sprintf("· %d ·", page), uniquePrefix+"_curr")
 		var btnNext = replyMarkup.Data(fmt.Sprintf("%d >", nextPage), uniquePrefix+"_next", strconv.Itoa(nextPage))
