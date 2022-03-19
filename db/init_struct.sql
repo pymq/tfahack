@@ -41,6 +41,6 @@ CREATE TABLE IF NOT EXISTS "Topics"
 (
     "TopicId"    INTEGER NOT NULL UNIQUE,
     "SenderTGId" INTEGER NOT NULL,
-    "Topic"      TEXT    NOT NULL,
+    "Topic"      TEXT    NOT NULL UNIQUE,
     PRIMARY KEY ("TopicId" AUTOINCREMENT)
 )

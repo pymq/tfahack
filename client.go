@@ -376,7 +376,7 @@ func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 		currIdx := 0
 		for i := (page - 1) * pagingBy; i < page*pagingBy && i < len(allReplies); i++ {
 			reply := allReplies[i]
-			recipients, err := b.db.GetRecipientsByIds([]int64{ctx.Chat().ID})
+			recipients, err := b.db.GetRecipientsByIds([]int64{reply.RecipientId})
 			if err != nil {
 				return err
 			}
@@ -423,6 +423,8 @@ func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 		nextPage := page + 1
 		if nextPage > totalPages {
 			nextPage = totalPages
+		} else if nextPage == 0 {
+			nextPage = 1
 		}
 		var replyMarkup = &telebot.ReplyMarkup{}
 		var btnFirst = replyMarkup.Data("«1", uniquePrefix+"_first", "1")
