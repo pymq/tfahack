@@ -308,7 +308,7 @@ func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 	if len(args) < 1 || len(args) > 2 {
 		return ctx.Send("command should be in format /show_replies <topic> [search_query_word]")
 	}
-	topic := args[0]
+	topicName := args[0]
 	searchQuery := ""
 	if len(args) == 2 {
 		searchQuery = args[1]
@@ -316,16 +316,24 @@ func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 
 	page := 1
 	const pagingBy = 5
-	var allReplies []mockMessage
+	var allReplies []models.Message
 	var totalPages int
 	tgMessages := make([]*telebot.Message, 0, pagingBy)
 
 	sendOrUpdateMessages := func() error {
-		allReplies = getMockRepliesByTopic(topic)
+		topic, err := b.db.GetTopicByTopicNameAndSender(topicName, ctx.Chat().ID)
+		if err != nil {
+			return err
+		}
+		messages, err := b.db.GetMessagesByTopicIdFromRecipient(topic.TopicId)
+		if err != nil {
+			return err
+		}
+		allReplies = messages
 		if searchQuery != "" {
 			n := 0
 			for _, msg := range allReplies {
-				if strings.Contains(msg.Text, searchQuery) {
+				if strings.Contains(msg.Message, searchQuery) {
 					allReplies[n] = msg
 					n++
 				}
@@ -340,8 +348,14 @@ func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 		currIdx := 0
 		for i := (page - 1) * pagingBy; i < page*pagingBy && i < len(allReplies); i++ {
 			reply := allReplies[i]
+			recipients, err := b.db.GetRecipientsByIds([]int64{ctx.Chat().ID})
+			if err != nil {
+				return err
+			}
+			tgName := recipients[0].RecipientTGName
+
 			const timeLayout = "2006-01-02 15:04:05"
-			messageText := fmt.Sprintf("%s (%s):\n\n%s", reply.TGSenderId, reply.SendDate.Format(timeLayout), reply.Text)
+			messageText := fmt.Sprintf("@%s (%s):\n\n%s", tgName, reply.SendDateTime.Format(timeLayout), reply.Message)
 			if currIdx >= len(tgMessages) {
 				message, err := b.client.Send(ctx.Recipient(), messageText)
 				if err != nil {
@@ -369,7 +383,7 @@ func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 
 	h := xxhash.New()
 	_ = binary.Write(h, binary.BigEndian, ctx.Chat().ID)
-	sumBytes := h.Sum([]byte(topic))
+	sumBytes := h.Sum([]byte(topicName))
 	uniquePrefix := base64.URLEncoding.EncodeToString(sumBytes)
 	uniquePrefix = strings.TrimSuffix(uniquePrefix, "==")
 
@@ -404,7 +418,7 @@ func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 		return err
 	}
 
-	str := fmt.Sprintf("Сообщения по топику '%s'. Выбери страницу", topic)
+	str := fmt.Sprintf("Сообщения по топику '%s'. Выбери страницу", topicName)
 	keyboardMessage, err := b.client.Send(ctx.Recipient(), str, makeReplyMarkup())
 	if err != nil {
 		return err
@@ -482,7 +496,7 @@ func (b *Bot) handleTopicsStats(ctx telebot.Context) error {
 	str.WriteString("Статистика по топикам:")
 	for _, topic := range topics {
 		stat := topicsStats[topic.Topic]
-		fmt.Fprintf(str, "\n%s: отправлено %d; получено %d", topic.Topic, stat.Sent, stat.Received)
+		_, _ = fmt.Fprintf(str, "\n%s: отправлено %d; получено %d", topic.Topic, stat.Sent, stat.Received)
 	}
 
 	return ctx.Send(str.String())
@@ -496,47 +510,5 @@ func IgnoreNonPrivateMessages(next telebot.HandlerFunc) telebot.HandlerFunc {
 		}
 
 		return next(ctx)
-	}
-}
-
-type mockMessage struct {
-	TGSenderId string
-	SendDate   time.Time
-	Text       string
-}
-
-// TODO: select from DB
-func getMockRepliesByTopic(topic string) []mockMessage {
-	return []mockMessage{
-		{
-			TGSenderId: "@risinglight",
-			SendDate:   time.Now().Add(time.Minute * -5),
-			Text:       "Test from leshya 1",
-		},
-		{
-			TGSenderId: "@risinglight",
-			SendDate:   time.Now().Add(time.Minute * -5),
-			Text:       "Test from leshya 2",
-		},
-		{
-			TGSenderId: "@risinglight",
-			SendDate:   time.Now().Add(time.Minute * -4),
-			Text:       "Test from leshya 3",
-		},
-		{
-			TGSenderId: "@grishanya_win",
-			SendDate:   time.Now().Add(time.Minute * -4),
-			Text:       "Test from non-leshya 1",
-		},
-		{
-			TGSenderId: "@risinglight",
-			SendDate:   time.Now().Add(time.Minute * -3),
-			Text:       "Test from leshya 4",
-		},
-		{
-			TGSenderId: "@grishanya_win",
-			SendDate:   time.Now().Add(time.Minute * -1),
-			Text:       "Test from non-leshya 2",
-		},
 	}
 }

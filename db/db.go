@@ -55,7 +55,7 @@ func (db *DB) AddRecipient(recipient models.Recipient) error {
 }
 
 func (db *DB) GetRecipientsByIds(tgIds []int64) ([]models.Recipient, error) {
-	recipients := make([]models.Recipient, 1)
+	recipients := make([]models.Recipient, 0)
 	err := db.db.NewSelect().Model(&recipients).Where("recipient.RecipientTGId in (?)", bun.In(tgIds)).Scan(context.Background())
 	if err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func (db *DB) GetRecipientsByIds(tgIds []int64) ([]models.Recipient, error) {
 }
 
 func (db *DB) GetRecipientsByTGNames(tgNames []string) ([]models.Recipient, error) {
-	recipients := make([]models.Recipient, 1)
+	recipients := make([]models.Recipient, 0)
 	err := db.db.NewSelect().Model(&recipients).Where("recipient.RecipientTGName in (?)", bun.In(tgNames)).Scan(context.Background())
 	if err != nil {
 		return nil, err
@@ -139,11 +139,31 @@ func (db *DB) AddMessage(message models.Message) error {
 	return err
 }
 
+func (db *DB) GetTopicByTopicNameAndSender(topicName string, senderTGId int64) (models.Topic, error) {
+	topic := models.Topic{}
+	err := db.db.NewSelect().
+		Model(&topic).
+		Where("topic.Topic = (?)", topicName).
+		Where("topic.SenderTGId = (?)", senderTGId).
+		Scan(context.Background())
+	return topic, err
+}
+
 func (db *DB) GetMessagesByTopicId(topicId int64) ([]models.Message, error) {
 	messages := make([]models.Message, 0)
 	err := db.db.NewSelect().
 		Model(&messages).
 		Where("message.TopicId = (?)", topicId).
+		Scan(context.Background())
+	return messages, err
+}
+
+func (db *DB) GetMessagesByTopicIdFromRecipient(topicId int64) ([]models.Message, error) {
+	messages := make([]models.Message, 0)
+	err := db.db.NewSelect().
+		Model(&messages).
+		Where("message.TopicId = (?)", topicId).
+		Where("message.IsRecipientMessage = (?)", 1).
 		Scan(context.Background())
 	return messages, err
 }
