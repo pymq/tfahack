@@ -5,6 +5,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/pymq/tfahack/db"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -15,6 +16,12 @@ type Config struct {
 }
 
 func main() {
+
+	botDB, err := db.NewDB()
+	if err != nil {
+		log.Panicf("init db: %v", err)
+	}
+
 	cfg := Config{
 		// TODO from file?
 		AdminIDs:     nil,
@@ -22,7 +29,7 @@ func main() {
 		LogAllEvents: true,
 	}
 
-	bot, err := NewBot(cfg)
+	bot, err := NewBot(cfg, botDB)
 	if err != nil {
 		log.Panicf("init bot: %v", err)
 	}

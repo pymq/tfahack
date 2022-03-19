@@ -2,9 +2,8 @@ CREATE TABLE IF NOT EXISTS "Recipients"
 (
     "RecipientId"     INTEGER NOT NULL UNIQUE,
     "RecipientName"   TEXT    NOT NULL,
-    "RecipientTGName" TEXT,
-    "RecipientTGId"   TEXT,
-    "RecipientRoom"   TEXT    NOT NULL,
+    "RecipientTGName" TEXT    NOT NULL UNIQUE,
+    "RecipientTGId"   TEXT    NOT NULL UNIQUE,
     PRIMARY KEY ("RecipientId" AUTOINCREMENT)
 );
 

@@ -5,11 +5,10 @@ import (
 )
 
 type Recipient struct {
-	bun.BaseModel `bun:"table:users,alias:u"`
+	bun.BaseModel `bun:"table:Recipients,alias:recipient"`
 
-	RecipientId     int64 `bun:",pk,autoincrement,unique"`
-	RecipientName   string
-	RecipientTGName string
-	RecipientTGId   string
-	RecipientRoom   string
+	RecipientId     int64  `bun:"RecipientId,pk,autoincrement,unique"`
+	RecipientName   string `bun:"RecipientName,notnull"`
+	RecipientTGName string `bun:"RecipientTGName,notnull,unique"`
+	RecipientTGId   int64  `bun:"RecipientTGId,notnull,unique"`
 }

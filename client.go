@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pymq/tfahack/db"
+	"github.com/pymq/tfahack/models"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/utf8string"
 	"gopkg.in/telebot.v3"
@@ -13,10 +15,11 @@ import (
 type Bot struct {
 	client *telebot.Bot
 	poller *telebot.LongPoller
+	db     *db.DB
 	cfg    Config
 }
 
-func NewBot(cfg Config) (*Bot, error) {
+func NewBot(cfg Config, db *db.DB) (*Bot, error) {
 	poller := &telebot.LongPoller{Timeout: 10 * time.Second}
 	b, err := telebot.NewBot(telebot.Settings{
 		OnError: func(err error, ctx telebot.Context) {
@@ -33,6 +36,7 @@ func NewBot(cfg Config) (*Bot, error) {
 		client: b,
 		poller: poller,
 		cfg:    cfg,
+		db:     db,
 	}
 	if cfg.LogAllEvents {
 		b.Use(middleware.Logger())
@@ -137,8 +141,22 @@ func (b *Bot) initHandlers() error {
 }
 
 func (b *Bot) handleStart(ctx telebot.Context) error {
-	// TODO: add to list of possible recipients
-	return ctx.Send("Hello!")
+	recipients, err := b.db.GetRecipients([]int64{ctx.Chat().ID})
+	if err != nil {
+		log.Errorf("stat command: recipients select: %v", err)
+	}
+	if len(recipients) > 0 {
+		return ctx.Send("Вы уже в списке, как только для вас будет сообщение мы вам напишем!")
+	}
+	err = b.db.AddRecipient(models.Recipient{
+		RecipientName:   fmt.Sprintf("%s %s", ctx.Chat().FirstName, ctx.Chat().LastName),
+		RecipientTGId:   ctx.Chat().ID,
+		RecipientTGName: ctx.Chat().Username,
+	})
+	if err != nil {
+		log.Errorf("stat command: recipient insert: %v", err)
+	}
+	return ctx.Send("Рады видеть вас в нашем боте! Теперь вы сможете получать рассылки от партнеров!")
 }
 
 func (b *Bot) handleHelp(ctx telebot.Context) error {
