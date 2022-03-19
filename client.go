@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pymq/tfahack/db"
@@ -141,9 +142,10 @@ func (b *Bot) initHandlers() error {
 }
 
 func (b *Bot) handleStart(ctx telebot.Context) error {
-	recipients, err := b.db.GetRecipients([]int64{ctx.Chat().ID})
+	recipients, err := b.db.GetRecipientsByIds([]int64{ctx.Chat().ID})
 	if err != nil {
 		log.Errorf("stat command: recipients select: %v", err)
+		return err
 	}
 	if len(recipients) > 0 {
 		return ctx.Send("Вы уже в списке, как только для вас будет сообщение мы вам напишем!")
@@ -155,6 +157,7 @@ func (b *Bot) handleStart(ctx telebot.Context) error {
 	})
 	if err != nil {
 		log.Errorf("stat command: recipient insert: %v", err)
+		return err
 	}
 	return ctx.Send("Рады видеть вас в нашем боте! Теперь вы сможете получать рассылки от партнеров!")
 }
@@ -168,13 +171,49 @@ func (b *Bot) handleHelp(ctx telebot.Context) error {
 func (b *Bot) handleCreateMailingList(ctx telebot.Context) error {
 	args := ctx.Args()
 	if len(args) < 2 {
-		return ctx.Send("command should be in format /create_mailing_list <mailing_list_name> <recipient1> <recipient2> <...>")
+		return ctx.Send("Пожалуйста, введите данные в формате /create_mailing_list <Название_списка> <Получатель1> <Получатель2> <...>")
 	}
-	listName := args[0]
 	recipients := args[1:]
-	// TODO: save to db
 
-	return ctx.Send(fmt.Sprintf("%s: %v", listName, recipients))
+	uniqueRecipients := make(map[string]struct{})
+	errors := make([]string, 0)
+	n := 0
+	for _, recipient := range args[1:] {
+		recipient = strings.TrimPrefix(recipient, "@")
+		if _, ok := uniqueRecipients[recipient]; ok {
+			continue
+		}
+		uniqueRecipients[recipient] = struct{}{}
+		recipients[n] = recipient
+		n++
+	}
+	recipients = recipients[:n]
+	recipientsInfo, err := b.db.GetRecipientsByTGNames(recipients)
+	if err != nil {
+		log.Errorf("create mailing list: load recipients: %v", err)
+		return err
+	}
+
+	recipientsIds := make([]int64, len(recipientsInfo))
+	for id, recipient := range recipientsInfo {
+		recipientsIds[id] = recipient.RecipientId
+		delete(uniqueRecipients, recipient.RecipientTGName)
+	}
+
+	for recipient := range uniqueRecipients {
+		errors = append(errors, fmt.Sprintf("@%s - Пользователь не подключен к боту", recipient))
+	}
+
+	err = b.db.AddMailingList(models.MailingList{ListName: args[0], SenderTGId: ctx.Chat().ID}, recipientsIds)
+	if err != nil {
+		log.Errorf("create mailing list: %v", err)
+		return err
+	}
+
+	if len(errors) > 0 {
+		return ctx.Send(fmt.Sprintf("Список создан!\n\nНе удалось добавить некоторых пользователей:\n%s", strings.Join(errors, ",\n")))
+	}
+	return ctx.Send("Список создан!")
 }
 
 // command: /send_messages <topic> <mailing_list_name>

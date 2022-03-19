@@ -46,11 +46,35 @@ func (db *DB) AddRecipient(recipient models.Recipient) error {
 	return err
 }
 
-func (db *DB) GetRecipients(tgIds []int64) ([]models.Recipient, error) {
+func (db *DB) GetRecipientsByIds(tgIds []int64) ([]models.Recipient, error) {
 	recipients := make([]models.Recipient, 1)
 	err := db.db.NewSelect().Model(&recipients).Where("recipient.RecipientTGId in (?)", bun.In(tgIds)).Scan(context.Background())
 	if err != nil {
 		return nil, err
 	}
 	return recipients, nil
+}
+
+func (db *DB) GetRecipientsByTGNames(tgNames []string) ([]models.Recipient, error) {
+	recipients := make([]models.Recipient, 1)
+	err := db.db.NewSelect().Model(&recipients).Where("recipient.RecipientTGName in (?)", bun.In(tgNames)).Scan(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	return recipients, nil
+}
+
+func (db *DB) AddMailingList(mList models.MailingList, recipientsIds []int64) error {
+	_, err := db.db.NewInsert().Model(&mList).Exec(context.Background())
+	if err != nil {
+		return err
+	}
+
+	mailingListRelations := make([]models.MailingListRelations, len(recipientsIds))
+	for id, recipientsId := range recipientsIds {
+		mailingListRelations[id].ListId = mList.ListId
+		mailingListRelations[id].RecipientId = recipientsId
+	}
+	_, err = db.db.NewInsert().Model(&mailingListRelations).Exec(context.Background())
+	return err
 }

@@ -9,10 +9,16 @@ CREATE TABLE IF NOT EXISTS "Recipients"
 
 CREATE TABLE IF NOT EXISTS "MailingList"
 (
-    "ListId"   INTEGER NOT NULL UNIQUE,
-    "SenderId" INTEGER COLLATE BINARY,
-    "ListName" TEXT,
+    "ListId"     INTEGER NOT NULL UNIQUE,
+    "SenderTGId" INTEGER NOT NULL,
+    "ListName"   TEXT    NOT NULL,
     PRIMARY KEY ("ListId" AUTOINCREMENT)
+);
+
+CREATE TABLE IF NOT EXISTS "MailingListRelations"
+(
+    "ListId"      INTEGER NOT NULL,
+    "RecipientId" INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS "Messages"
