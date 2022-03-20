@@ -103,7 +103,6 @@ func (b *Bot) initHandlers() error {
 	}
 
 	b.client.Handle("/start", b.handleStart, IgnoreNonPrivateMessages)
-	b.client.Handle("/help", b.handleHelp, IgnoreNonPrivateMessages)
 	adminsOnly.Handle("/create_mailing_list", b.handleCreateMailingList)
 	adminsOnly.Handle("/send_messages", b.handleSendMessages)
 	adminsOnly.Handle("/show_replies", b.handleShowReplies)
@@ -116,15 +115,11 @@ func (b *Bot) initHandlers() error {
 	err := b.client.SetCommands([]telebot.Command{
 		{
 			Text:        "start",
-			Description: "запустить бота. TODO: description",
-		},
-		{
-			Text:        "help",
-			Description: "запустить бота. TODO: description",
+			Description: "подписаться на рассылки",
 		},
 		{
 			Text:        "create_mailing_list",
-			Description: "создать список людей на рассылку. формат: /create_mailing_list <mailing_list_name> <recipient1> <recipient2> <...>",
+			Description: "создать список для рассылки. формат: /create_mailing_list <mailing_list_name> <recipient1> <recipient2> <...>",
 		},
 		{
 			Text:        "send_messages",
@@ -170,11 +165,6 @@ func (b *Bot) handleStart(ctx telebot.Context) error {
 		return err
 	}
 	return ctx.Send("Рады видеть вас в нашем боте! Теперь вы сможете получать рассылки от партнеров!")
-}
-
-func (b *Bot) handleHelp(ctx telebot.Context) error {
-	// TODO: write help text
-	return ctx.Send("Hello!")
 }
 
 // command: /create_mailing_list <mailing_list_name> <recipient1> <recipient2> <...>
@@ -227,54 +217,6 @@ func (b *Bot) handleCreateMailingList(ctx telebot.Context) error {
 		return ctx.Send(fmt.Sprintf("Список создан!\n\nНе удалось добавить некоторых пользователей:\n%s", strings.Join(errors, ",\n")))
 	}
 	return ctx.Send("Список создан!")
-}
-
-// command: /send_messages <topic> <mailing_list_name>
-func (b *Bot) handleSendMessages(ctx telebot.Context) error {
-	args := ctx.Args()
-	if len(args) != 3 {
-		return ctx.Send("Пожалуйста, введите данные в формате /send_messages <IdТопика> <MailingListId> <MessageBody>")
-	}
-	topicName := args[0]
-	mailingListId, _ := strconv.ParseInt(args[1], 10, 64)
-	messageBody := args[2]
-
-	topic, err := b.db.AddTopic(models.Topic{
-		SenderTGId: ctx.Chat().ID,
-		Topic:      topicName,
-	})
-	if err != nil {
-		log.Errorf("send message: create topic: %v", err)
-		return err
-	}
-
-	recipients, _ := b.db.GetMailingListRecipientsById(mailingListId)
-
-	for _, recipient := range recipients {
-		message, err := b.client.Send(telebot.ChatID(recipient.RecipientTGId), messageBody)
-		if err != nil {
-			log.Errorf("send message: %v", err)
-			return err
-		}
-		err = b.db.AddMessage(models.Message{
-			MessageTGId:        int64(message.ID),
-			SenderTGId:         ctx.Chat().ID,
-			RecipientId:        recipient.RecipientId,
-			TopicId:            topic.TopicId,
-			ListId:             mailingListId,
-			SendDateTime:       message.Time(),
-			Message:            message.Text,
-			React:              "",
-			Read:               0,
-			IsRecipientMessage: 0,
-		})
-		if err != nil {
-			log.Errorf("save message: %v", err)
-			return err
-		}
-	}
-
-	return ctx.Send("Пост отправлен!")
 }
 
 func (b *Bot) handleShowReplies(ctx telebot.Context) error {
@@ -564,6 +506,54 @@ func (b *Bot) handleTopicsStats(ctx telebot.Context) error {
 	return ctx.Send(str.String())
 }
 
+// command: /send_messages <topic> <mailing_list_name>
+func (b *Bot) handleSendMessages(ctx telebot.Context) error {
+	args := ctx.Args()
+	if len(args) != 3 {
+		return ctx.Send("Пожалуйста, введите данные в формате /send_messages <IdТопика> <MailingListId> <MessageBody>")
+	}
+	topicName := args[0]
+	mailingListId, _ := strconv.ParseInt(args[1], 10, 64)
+	messageBody := args[2]
+
+	topic, err := b.db.AddTopic(models.Topic{
+		SenderTGId: ctx.Chat().ID,
+		Topic:      topicName,
+	})
+	if err != nil {
+		log.Errorf("send message: create topic: %v", err)
+		return err
+	}
+
+	recipients, _ := b.db.GetMailingListRecipientsById(mailingListId)
+
+	for _, recipient := range recipients {
+		message, err := b.client.Send(telebot.ChatID(recipient.RecipientTGId), messageBody)
+		if err != nil {
+			log.Errorf("send message: %v", err)
+			return err
+		}
+		err = b.db.AddMessage(models.Message{
+			MessageTGId:        int64(message.ID),
+			SenderTGId:         ctx.Chat().ID,
+			RecipientId:        recipient.RecipientId,
+			TopicId:            topic.TopicId,
+			ListId:             mailingListId,
+			SendDateTime:       message.Time(),
+			Message:            message.Text,
+			React:              "",
+			Read:               0,
+			IsRecipientMessage: 0,
+		})
+		if err != nil {
+			log.Errorf("save message: %v", err)
+			return err
+		}
+	}
+
+	return ctx.Send("Пост отправлен!")
+}
+
 func (b *Bot) handleAllTextMessages(ctx telebot.Context) error {
 	msg := ctx.Message()
 	if reply := msg.ReplyTo; reply != nil {
@@ -597,6 +587,7 @@ func (b *Bot) handleAllTextMessages(ctx telebot.Context) error {
 				log.Errorf("reply: send sender reply: %v", err)
 				return err
 			}
+
 			err = b.db.AddMessage(models.Message{
 				MessageTGId:        int64(sentMessage.ID),
 				SenderTGId:         ctx.Chat().ID,
@@ -613,18 +604,23 @@ func (b *Bot) handleAllTextMessages(ctx telebot.Context) error {
 				return err
 			}
 		} else {
-			sentMessage, err := b.client.Send(telebot.ChatID(message.SenderTGId), msg.Text)
-			if err != nil {
-				log.Errorf("reply: send recipient reply: %v", err)
-				return err
+			notifyEnabled, err := b.db.GetNotificationsConfig(message.SenderTGId)
+			mId := 0
+			if notifyEnabled {
+				sentMessage, err := b.client.Send(telebot.ChatID(message.SenderTGId), msg.Text)
+				if err != nil {
+					log.Errorf("reply: send recipient reply: %v", err)
+					return err
+				}
+				mId = sentMessage.ID
 			}
 			err = b.db.AddMessage(models.Message{
-				MessageTGId:        int64(sentMessage.ID),
+				MessageTGId:        int64(mId),
 				SenderTGId:         message.SenderTGId,
 				RecipientId:        ctx.Chat().ID,
 				TopicId:            message.TopicId,
 				ListId:             message.ListId,
-				SendDateTime:       sentMessage.Time(),
+				SendDateTime:       time.Now(),
 				Message:            msg.Text,
 				Read:               0,
 				IsRecipientMessage: 1,
