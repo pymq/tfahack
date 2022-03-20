@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
@@ -23,6 +24,10 @@ type Bot struct {
 	poller *telebot.LongPoller
 	db     *db.DB
 	cfg    Config
+
+	// tgMessageId -> real message from db
+	showRepliesPagingState     map[int]models.Message
+	showRepliesPagingStateLock sync.Mutex
 }
 
 func NewBot(cfg Config, db *db.DB) (*Bot, error) {
@@ -39,10 +44,11 @@ func NewBot(cfg Config, db *db.DB) (*Bot, error) {
 	}
 
 	bot := &Bot{
-		client: b,
-		poller: poller,
-		cfg:    cfg,
-		db:     db,
+		client:                 b,
+		poller:                 poller,
+		cfg:                    cfg,
+		db:                     db,
+		showRepliesPagingState: make(map[int]models.Message),
 	}
 	if cfg.LogAllEvents {
 		b.Use(middleware.Logger())
@@ -129,11 +135,11 @@ func (b *Bot) initHandlers() error {
 		},
 		{
 			Text:        "notifications_config",
-			Description: "настройка уведомлений. TODO: descriptions",
+			Description: "настройка уведомлений",
 		},
 		{
 			Text:        "topics_stats",
-			Description: "вывод статистики по топикам. TODO: descriptions",
+			Description: "вывод статистики сообщений по топикам",
 		},
 	})
 
@@ -320,20 +326,25 @@ func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 
 			const timeLayout = "2006-01-02 15:04:05"
 			messageText := fmt.Sprintf("@%s (%s):\n\n%s", tgName, reply.SendDateTime.Format(timeLayout), reply.Message)
+			var message *telebot.Message
 			if currIdx >= len(tgMessages) {
-				message, err := b.client.Send(ctx.Recipient(), messageText)
+				message, err = b.client.Send(ctx.Recipient(), messageText)
 				if err != nil {
 					return err
 				}
 				tgMessages = append(tgMessages, message)
 			} else {
-				message := tgMessages[currIdx]
-				message, err := b.client.Edit(message, messageText)
+				message = tgMessages[currIdx]
+				message, err = b.client.Edit(message, messageText)
 				if err != nil {
 					return err
 				}
 			}
 			currIdx++
+
+			b.showRepliesPagingStateLock.Lock()
+			b.showRepliesPagingState[message.ID] = reply
+			b.showRepliesPagingStateLock.Unlock()
 		}
 		// clear messages on last page
 		for _, message := range tgMessages[currIdx:] {
@@ -494,11 +505,19 @@ func (b *Bot) handleTopicsStats(ctx telebot.Context) error {
 func (b *Bot) handleAllTextMessages(ctx telebot.Context) error {
 	msg := ctx.Message()
 	if reply := msg.ReplyTo; reply != nil {
-		// TODO: check if he replied on message to recipient; save it to DB; send it to sender
-		message, err := b.db.GetMessageByMessageId(int64(msg.ReplyTo.ID))
-		if err != nil {
-			log.Errorf("reply: get message: %v", err)
-			return err
+		var message models.Message
+		var err error
+
+		b.showRepliesPagingStateLock.Lock()
+		message, exists := b.showRepliesPagingState[reply.ID]
+		b.showRepliesPagingStateLock.Unlock()
+
+		if !exists {
+			message, err = b.db.GetMessageByMessageId(int64(msg.ReplyTo.ID))
+			if err != nil {
+				log.Errorf("reply: get message: %v", err)
+				return err
+			}
 		}
 		if message.ListId == 0 { //TODO add relevant check on reply to to unsaved message
 			return nil
