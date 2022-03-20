@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"sync"
+	"time"
 
 	"github.com/pymq/tfahack/models"
 	log "github.com/sirupsen/logrus"
@@ -139,6 +140,8 @@ func (db *DB) GetUserTopicById(topicId int64) (models.Topic, error) {
 }
 
 func (db *DB) AddMessage(message models.Message) error {
+	_, localeOffset := message.SendDateTime.Zone()
+	message.SendDateTime = message.SendDateTime.Add(time.Second * time.Duration(localeOffset))
 	_, err := db.db.NewInsert().Model(&message).Exec(context.Background())
 	return err
 }
