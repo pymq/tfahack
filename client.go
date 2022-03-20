@@ -605,6 +605,9 @@ func (b *Bot) handleAllTextMessages(ctx telebot.Context) error {
 			}
 		} else {
 			notifyEnabled, err := b.db.GetNotificationsConfig(message.SenderTGId)
+			if err != nil {
+				return err
+			}
 			mId := 0
 			if notifyEnabled {
 				sentMessage, err := b.client.Send(telebot.ChatID(message.SenderTGId), msg.Text)
