@@ -107,6 +107,7 @@ func (b *Bot) initHandlers() error {
 	adminsOnly.Handle("/create_mailing_list", b.handleCreateMailingList)
 	adminsOnly.Handle("/send_messages", b.handleSendMessages)
 	adminsOnly.Handle("/show_replies", b.handleShowReplies)
+	adminsOnly.Handle("/show_replies_old", b.handleShowRepliesOld)
 	adminsOnly.Handle("/notifications_config", b.handleNotificationsConfig)
 	adminsOnly.Handle("/topics_stats", b.handleTopicsStats)
 	// rest text messages
@@ -131,7 +132,11 @@ func (b *Bot) initHandlers() error {
 		},
 		{
 			Text:        "show_replies",
-			Description: "вывести ответы по топику. /show_replies <topic> [search_query_word]",
+			Description: "вывести ответы по топику",
+		},
+		{
+			Text:        "show_replies_old",
+			Description: "old! вывести ответы по топику. /show_replies <topic> [search_query_word]",
 		},
 		{
 			Text:        "notifications_config",
@@ -272,8 +277,60 @@ func (b *Bot) handleSendMessages(ctx telebot.Context) error {
 	return ctx.Send("Пост отправлен!")
 }
 
-// command: /show_replies <topic> [search_query_word]
 func (b *Bot) handleShowReplies(ctx telebot.Context) error {
+	topics, err := b.db.GetUserTopicsBySender(ctx.Chat().ID)
+	if err != nil {
+		return err
+	}
+
+	var replyMarkup = &telebot.ReplyMarkup{}
+	var buttons []telebot.Btn
+	for _, topic := range topics {
+		h := xxhash.New()
+		_ = binary.Write(h, binary.BigEndian, ctx.Chat().ID)
+		sumBytes := h.Sum([]byte(topic.Topic))
+		uniquePrefix := base64.URLEncoding.EncodeToString(sumBytes)
+		uniquePrefix = strings.TrimRight(uniquePrefix, "=")
+
+		data := strconv.FormatInt(topic.TopicId, 10)
+		var btn = replyMarkup.Data(topic.Topic, uniquePrefix+"_show", data)
+		buttons = append(buttons, btn)
+	}
+	replyMarkup.Inline(buttons)
+
+	_, err = b.client.Send(ctx.Recipient(), "Выберите топик для показа сообщений", replyMarkup)
+	if err != nil {
+		return err
+	}
+
+	for _, button := range buttons {
+		b.client.Handle(button.CallbackUnique(), func(ctx telebot.Context) error {
+			data := strings.Split(ctx.Callback().Data, "|")
+			if len(data) == 0 {
+				return ctx.Respond()
+			}
+
+			topicId, err := strconv.ParseInt(data[0], 10, 64)
+			if err != nil {
+				return err
+			}
+
+			topic, err := b.db.GetUserTopicById(topicId)
+			if err != nil {
+				return err
+			}
+
+			_ = ctx.Respond()
+
+			return b.showRepliesPaging(ctx, topic.Topic, "")
+		})
+	}
+
+	return nil
+}
+
+// command: /show_replies_old <topic> [search_query_word]
+func (b *Bot) handleShowRepliesOld(ctx telebot.Context) error {
 	args := ctx.Args()
 	if len(args) < 1 || len(args) > 2 {
 		return ctx.Send("command should be in format /show_replies <topic> [search_query_word]")
@@ -284,6 +341,11 @@ func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 		searchQuery = args[1]
 	}
 
+	err := b.showRepliesPaging(ctx, topicName, searchQuery)
+	return err
+}
+
+func (b *Bot) showRepliesPaging(ctx telebot.Context, topicName, searchQuery string) error {
 	page := 1
 	const pagingBy = 5
 	var allReplies []models.Message
