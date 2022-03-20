@@ -421,9 +421,33 @@ func (b *Bot) handleShowReplies(ctx telebot.Context) error {
 }
 
 func (b *Bot) handleNotificationsConfig(ctx telebot.Context) error {
-	// TODO: show keyboard buttons with 3 config options; add handlers on each of the buttons;
-	//  hide keyboard after tapping on button
-	return ctx.Send("test")
+	uniquePrefix := strconv.FormatInt(ctx.Chat().ID, 10)
+
+	var replyMarkup = &telebot.ReplyMarkup{}
+	var btnOn = replyMarkup.Data("Включить", uniquePrefix+"_notif_on")
+	var btnOff = replyMarkup.Data("Отключить", uniquePrefix+"_notif_off")
+	replyMarkup.Inline(replyMarkup.Row(btnOn, btnOff))
+
+	_, err := b.client.Send(ctx.Recipient(), "Выберите настройки уведомлений", replyMarkup)
+	if err != nil {
+		return err
+	}
+	b.client.Handle(btnOn.CallbackUnique(), func(ctx telebot.Context) error {
+		err := b.db.SetNotificationsConfig(ctx.Chat().ID, true)
+		if err != nil {
+			return err
+		}
+		return ctx.Respond()
+	})
+	b.client.Handle(btnOff.CallbackUnique(), func(ctx telebot.Context) error {
+		err := b.db.SetNotificationsConfig(ctx.Chat().ID, false)
+		if err != nil {
+			return err
+		}
+		return ctx.Respond()
+	})
+
+	return nil
 }
 
 func (b *Bot) handleTopicsStats(ctx telebot.Context) error {

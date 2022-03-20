@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	_ "embed"
+	"sync"
 
 	"github.com/pymq/tfahack/models"
 	log "github.com/sirupsen/logrus"
@@ -18,6 +19,9 @@ var initStructQuery string
 
 type DB struct {
 	db *bun.DB
+	// TODO: store in db
+	notificationsConfig     map[int64]bool
+	notificationsConfigLock sync.Mutex
 }
 
 func NewDB() (*DB, error) {
@@ -39,7 +43,7 @@ func NewDB() (*DB, error) {
 		return nil, err
 	}
 
-	return &DB{db: db}, nil
+	return &DB{db: db, notificationsConfig: make(map[int64]bool)}, nil
 }
 
 func (db *DB) Close() {
@@ -175,4 +179,20 @@ func (db *DB) GetMessageByMessageId(messageId int64) (models.Message, error) {
 		Where("message.MessageTGId = (?)", messageId).
 		Scan(context.Background(), &message)
 	return message, err
+}
+
+func (db *DB) SetNotificationsConfig(senderTGId int64, value bool) error {
+	db.notificationsConfigLock.Lock()
+	defer db.notificationsConfigLock.Unlock()
+	db.notificationsConfig[senderTGId] = value
+
+	return nil
+}
+
+func (db *DB) GetNotificationsConfig(senderTGId int64) (bool, error) {
+	db.notificationsConfigLock.Lock()
+	defer db.notificationsConfigLock.Unlock()
+	value := db.notificationsConfig[senderTGId]
+
+	return value, nil
 }

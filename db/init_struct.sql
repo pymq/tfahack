@@ -45,5 +45,5 @@ CREATE TABLE IF NOT EXISTS "Topics"
     PRIMARY KEY ("TopicId" AUTOINCREMENT)
 );
 
-CREATE UNIQUE INDEX topics_unique
+CREATE UNIQUE INDEX IF NOT EXISTS topics_unique
     on "Topics" ("Topic", "SenderTGId");
